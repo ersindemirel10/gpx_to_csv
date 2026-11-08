@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPX to CSV / TXT</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="icon" href="icon-192.png">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: #1e293b;
+      padding: 24px;
+      border-radius: 16px;
+      width: 100%;
+      max-width: 420px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+      text-align: center;
+    }
+    h2 { margin-top: 0; font-size: 1.4rem; color: #38bdf8; }
+    p { font-size: 0.9rem; color: #94a3b8; line-height: 1.4; }
+    .upload-box {
+      border: 2px dashed #475569;
+      padding: 20px 16px;
+      border-radius: 12px;
+      margin: 16px 0;
+      background: #0f172a;
+      cursor: pointer;
+    }
+    input[type="file"] { display: none; }
+    .input-group {
+      margin: 16px 0;
+      text-align: left;
+    }
+    .input-group label {
+      display: block;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .input-group input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #f8fafc;
+      font-size: 0.95rem;
+      box-sizing: border-box;
+      outline: none;
+    }
+    .input-group input[type="text"]:focus {
+      border-color: #38bdf8;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .btn {
+      flex: 1;
+      padding: 12px 0;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      border: none;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.2s;
+    }
+    .btn-csv {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-txt {
+      background: #0d9488;
+      color: white;
+    }
+    .btn:disabled {
+      background: #334155 !important;
+      color: #64748b !important;
+      cursor: not-allowed;
+    }
+    .btn-select {
+      background: #334155;
+      color: #cbd5e1;
+      padding: 8px 16px;
+      border-radius: 6px;
+      display: inline-block;
+      font-size: 0.85rem;
+    }
+    #status {
+      margin-top: 16px;
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>GPX ➔ CSV / TXT</h2>
+    <p>GPX dosyasını seçin veya Ctrl+V ile yapıştırın, dosya adını belirleyip formatı seçerek indirin.</p>
+
+    <!-- Dosya Seçim Alanı -->
+    <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+      <div class="btn-select">GPX Dosyası Seç</div>
+      <div id="selectedFileName" style="margin-top: 8px; font-size: 0.8rem; color: #38bdf8;">Dosya seçilmedi</div>
+      <input type="file" id="fileInput" accept=".gpx,application/gpx+xml">
+    </div>
+
+    <!-- İsim Belirleme Alanı -->
+    <div class="input-group">
+      <label for="customFileName">Kaydedilecek Dosya Adı (Uzantısız):</label>
+      <input type="text" id="customFileName" placeholder="Örn: aksam_egzersiz">
+    </div>
+
+    <!-- İki Ayrı Buton -->
+    <div class="btn-group">
+      <button class="btn btn-csv" id="btnCsv" disabled>CSV Olarak İndir</button>
+      <button class="btn btn-txt" id="btnTxt" disabled>TXT Olarak İndir</button>
+    </div>
+
+    <div id="status">Dosya bekleniyor...</div>
+  </div>
+
+  <script>
+    let selectedFile = null;
+
+    const fileInput = document.getElementById('fileInput');
+    const selectedFileName = document.getElementById('selectedFileName');
+    const customFileName = document.getElementById('customFileName');
+    const btnCsv = document.getElementById('btnCsv');
+    const btnTxt = document.getElementById('btnTxt');
+    const status = document.getElementById('status');
+
+    // Ctrl+V ile panodaki GPX dosyasını seç
+    document.addEventListener('paste', function(e) {
+      const files = e.clipboardData && e.clipboardData.files;
+      if (!files || files.length === 0) return; // dosya yoksa normal yapıştırma (örn. dosya adı alanı)
+      e.preventDefault();
+      const gpx = Array.from(files).find(f => /\.gpx$/i.test(f.name)) || files[0];
+      setFile(gpx);
+    });
+
+    fileInput.addEventListener('change', function(e) {
+      setFile(e.target.files[0]);
+    });
+
+    function setFile(file) {
+      selectedFile = file;
+      if (!selectedFile) return;
+
+      selectedFileName.innerText = selectedFile.name;
+      
+      // Dosya adını otomatik öneri olarak inputa yaz (uzantıyı temizleyerek)
+      const defaultName = selectedFile.name.replace(/\.gpx$/i, "") + "_analiz";
+      customFileName.value = defaultName;
+
+      btnCsv.disabled = false;
+      btnTxt.disabled = false;
+      status.innerText = "Dönüştürmeye hazır. Format seçebilirsiniz.";
+    }
+
+    function processAndDownload(extension) {
+      if (!selectedFile) return;
+
+      status.innerText = "İşleniyor...";
+      const reader = new FileReader();
+
+      reader.onload = function(event) {
+        try {
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(event.target.result, "text/xml");
+          const trkpts = xmlDoc.getElementsByTagName("trkpt");
+
+          if (trkpts.length === 0) {
+            status.innerText = "Hata: Dosyada trkpt noktası bulunamadı.";
+            return;
+          }
+
+          let lines = ["time,lat,lon,ele,hr"];
+
+          for (let i = 0; i < trkpts.length; i++) {
+            const pt = trkpts[i];
+            const lat = pt.getAttribute("lat") || "";
+            const lon = pt.getAttribute("lon") || "";
+
+            let ele = "";
+            let timeStr = "";
+            let hr = "";
+
+            const eleNode = pt.getElementsByTagName("ele")[0];
+            if (eleNode && eleNode.textContent) ele = eleNode.textContent.trim();
+
+            const timeNode = pt.getElementsByTagName("time")[0];
+            if (timeNode && timeNode.textContent) {
+              const fullTime = timeNode.textContent.trim();
+              timeStr = fullTime.includes("T") ? fullTime.split("T")[1].replace("Z", "") : fullTime;
+            }
+
+            const hrNodes = pt.getElementsByTagName("*");
+            for (let j = 0; j < hrNodes.length; j++) {
+              if (hrNodes[j].localName === "hr") {
+                hr = hrNodes[j].textContent.trim();
+                break;
+              }
+            }
+
+            lines.push(`${timeStr},${lat},${lon},${ele},${hr}`);
+          }
+
+          const fileContent = lines.join("\n");
+          const mimeType = extension === "csv" ? "text/csv;charset=utf-8;" : "text/plain;charset=utf-8;";
+          const blob = new Blob([fileContent], { type: mimeType });
+          const url = URL.createObjectURL(blob);
+
+          // İsim belirleme ve temizleme
+          let baseName = customFileName.value.trim();
+          if (!baseName) {
+            baseName = "egzersiz_analiz";
+          }
+          // Kullanıcı elle .csv veya .txt yazdıysa temizle
+          baseName = baseName.replace(/\.(csv|txt)$/i, "");
+          const finalFileName = `${baseName}.${extension}`;
+
+          const downloadLink = document.createElement("a");
+          downloadLink.href = url;
+          downloadLink.download = finalFileName;
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+          URL.revokeObjectURL(url);
+
+          status.innerText = `İşlem tamamlandı!\n${trkpts.length} nokta "${finalFileName}" olarak kaydedildi.`;
+        } catch (err) {
+          status.innerText = "Hata oluştu: " + err.message;
+        }
+      };
+
+      reader.readAsText(selectedFile);
+    }
+
+    btnCsv.addEventListener('click', () => processAndDownload('csv'));
+    btnTxt.addEventListener('click', () => processAndDownload('txt'));
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
